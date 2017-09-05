@@ -1,6 +1,0 @@
-email: <your-bots-email>
-pass : <that-emails-password>
-subject : <your-subject>
-recipients : ['irina@mathland.com','bob1@bobland.net', 'cathie@catphreaks.biz']
-msg_header : beep boop - Problem Time!
-problem_directory : <directory structure where your problems are stored>
