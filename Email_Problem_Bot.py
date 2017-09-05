@@ -5,25 +5,51 @@ import smtplib
 import os
 import yaml
 import random
+import re
 from email.mime.image     import MIMEImage
 from email.mime.text      import MIMEText
 from email.mime.multipart import MIMEMultipart
 
-CONFIGFILE   = './config.yml';
-PROBLEM_DAT  = './prob_tracking.yml';
+CONFIGFILE   = '/home/reader/Projects/Problem_Notifier/config.yml';
+PROBLEM_DAT  = '/home/reader/Projects/Problem_Notifier/prob_tracking.yml';
 
 #loaded config file
 CONFIG_SPEC     = None
 prob_tracking   = None
 
+#good sorting
+
+def tryint(s):
+    try:
+        return int(s)
+    except:
+        return s
+
+def alphanum_key(s):
+    """ Turn a string into a list of string and number chunks.
+        "z23a" -> ["z", 23, "a"]
+    """
+    return [ tryint(c) for c in re.split('([0-9]+)', s) ]
+
+def sort_nicely(l):
+    """ Sort the given list in the way that humans expect.
+    """
+    l.sort(key=alphanum_key)
+
 def get_immediate_subdirectories(a_dir):
+    os.chdir('/home/reader/Projects/Problem_Notifier');
     return [name for name in os.listdir(a_dir)
             if os.path.isdir(os.path.join(a_dir, name))]
+
+def removekey(d, key):
+    r = dict(d)
+    del r[key]
+    return r
 
 #emails a random problem, then updates our metadata lib
 def sendRandomProblems(n):
     global CONFIG_SPEC
-    problem_list = set()
+    problem_list = {}
     #get existing config
     # params
     f = open(CONFIGFILE)
@@ -36,13 +62,34 @@ def sendRandomProblems(n):
 
     #get list of problems in your directories
     for dir in get_immediate_subdirectories(CONFIG_SPEC['problem_directory']):
-        for file in os.listdir(dir):
-            problem_list.add(dir+'/'+file)
+        if not dir.startswith('.'):
+            for subdir in get_immediate_subdirectories(dir):
+                problem_list[dir + '/' + subdir] = set()
+                for file in os.listdir(dir + '/' + subdir):
+                    problem_list[dir + '/' + subdir].add(dir+'/'+subdir+'/'+file)
     
     completed_list = set(prob_tracking['sent_problems'])
-    problem_list = problem_list - completed_list
-    #pick n random problems
-    to_send = random.sample(problem_list, n)
+    for key in problem_list.keys():
+        problem_list[key] = problem_list[key] - completed_list
+        #remove empty sets
+        if len(problem_list[key]) == 0:
+            problem_list = removekey(problem_list, key)
+
+    to_send = []
+    
+    #pick n random chapters, and pick the first problem from whichever you choose
+    for i in range(n):
+        chapter = random.sample(problem_list.keys(),1)[0]
+        problems = list(problem_list[chapter])
+        sort_nicely(problems)
+        to_send.append(problems[0])
+        problems.pop(0)
+        if len(problems) != 0:
+            problem_list[chapter] = set(problems)
+        else:
+            problem_list = removekey(problem_list[chapter])
+    
+    
     for i in to_send:
         sendProblem(i)
         prob_tracking['sent_problems'].append(i)
@@ -93,4 +140,6 @@ def sendemail(from_addr, to_addr_list,# cc_addr_list,
     problems = server.sendmail(from_addr, to_addr_list, msg.as_string())
     server.quit()
 
+sendRandomProblems(1)
+sendRandomProblems(1)
 sendRandomProblems(1)
